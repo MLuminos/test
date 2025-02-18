@@ -1,0 +1,74 @@
+computer = get_shell.host_computer
+currentpath = current_path
+cryptools = include_lib("/lib/crypto.so")
+if not cryptools then cryptools = include_lib(get_shell.host_computer.current_path + "/cyrpto.so")
+if not cryptools then exit ("Error: Missing crypto library")
+passwd = null
+netcards = computer.network_devices
+netcards = netcards.split(" ")
+netcard = netcards.pull
+cryptools.airmon("start",netcard)
+wifis = computer.wifi_networks(netcard)
+info = ""
+bssid = []
+essid = []
+pwr = []
+
+for wifi in wifis
+	wifi = wifi.split(" ")
+	bssid.push (wifi.pull)
+	foo = wifi.pull
+	foo = foo.remove("%")
+	pwr.push (foo.to_int)
+	essid.push (wifi.pull)
+end for
+n = 0
+while n < bssid.len
+	if params.len > 0 and params[0]=="-m" then
+		choice = user_input ("<color=purple>Running automagical attack of " + essid[n] + " using ack target of " + 300000/pwr[n] +"</color>"+char(10)+"Do you want to attack it?(y or enter/n): ")
+        if choice.lower == "n" then 
+			n=n+1
+			continue
+		end if
+	else if params.len > 0 and params[0]=="-f" and params[1]!="" then
+			print ("<color=purple>Checking " + essid[n] + " calculated " + 300000/pwr[n] + " needed.")
+			thresh = (params[1]).to_int
+			cpwr = 300000/pwr[n]
+		if cpwr >= thresh then
+			print ("<color=red>fACK threshold exceeded, proceeding to next network")
+            n=n+1
+            continue
+		else
+			print("<color=green> within fACK threshold, collection starting")
+		end if
+	end if
+	file=computer.File(currentpath + "/file.cap")
+	if file then 
+		file.delete
+	end if
+	cryptools.aireplay(bssid[n],essid[n],300000/pwr[n])
+	wait (2)
+	passwd = cryptools.aircrack(currentpath + "/file.cap")
+	clear_screen
+	if passwd then 
+		info = bssid[n] + " " + essid[n] + " " + passwd + "\n"
+		passwd = null
+		file=computer.File(currentpath + "/wifiPWs")
+		if not file then 
+			computer.touch(currentpath, "wifiPWs")
+			file=computer.File(currentpath + "/wifiPWs")
+			file.set_content(info)
+			print ("<color=#FFD700>Success! Results saved in " + file.path + " please enjoy!")
+		else
+			temp = file.get_content
+			file.set_content(temp + info)
+			print ("<color=#FFD700>Success! Results saved in " + file.path + " please enjoy!")
+		end if
+		passwd = null
+	end if
+	n = n + 1
+end while
+file=computer.File(currentpath + "/file.cap")
+if file then 
+	file.delete
+end if
